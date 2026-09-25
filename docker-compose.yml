@@ -1,0 +1,96 @@
+name: ttrmap
+
+# Stiva aplicației de hartă: frontend + serviciul de hartă + baza lui + motorul de rutare.
+#
+# **Contul și traseele NU sînt aici.** Autentificarea și traseele salvate rămîn în backend-ul TTR,
+# fiindcă le folosește și aplicația de antrenament; serviciul de hartă validează același token JWT.
+# De aceea `Jwt__SecretKey` trebuie să fie identic cu cel din stiva TTR.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ttrmap
+      POSTGRES_USER: ttr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ttr_dev_password}
+    ports:
+      # Doar pe localhost: baza de hartă se administrează de pe mașină, nu din rețea.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ttrmap_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ttr -d ttrmap"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  map-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Acoperă migrarea care rulează la pornire.
+      start_period: 60s
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=ttrmap;Username=ttr;Password=${POSTGRES_PASSWORD:-ttr_dev_password}"
+      # **Același secret ca în TTR**, altfel tokenul de login nu e acceptat aici.
+      Jwt__SecretKey: ${JWT_SECRET:-dev-only-insecure-secret-key-change-me-1234567890}
+      Jwt__Issuer: ttr-api
+      Jwt__Audience: ttr-app
+      Admin__Emails__0: ${ADMIN_EMAIL:-user@ttr.local}
+      Valhalla__BaseUrl: http://valhalla:8002
+      Cors__AllowedOrigins__0: http://localhost:8080
+    ports:
+      - "127.0.0.1:5199:8080"
+
+  # Motorul de rutare. Într-un profil, deliberat: prima pornire descarcă extractul OSM al României
+  # (314 MB) și construiește tile-urile (~6 minute, 378 MB), ceea ce n-are ce căuta în
+  # `docker compose up` de rutină. Se pornește cu `docker compose --profile routing up -d`.
+  #
+  # **Memorie:** măsurat pe 2026-09-24 — 81 MB RSS în repaus după construcție, iar tile-urile sînt
+  # citite prin `mmap` (pagină de cache, nu heap). Plafonul de mai jos e o gardă: pe un VPS mic,
+  # preferăm ca Valhalla să fie omorît decît să ia cu el PostgreSQL.
+  valhalla:
+    build:
+      context: ./docker/valhalla
+    profiles: ["routing"]
+    restart: unless-stopped
+    mem_limit: 1500m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 900s
+    volumes:
+      - ttrmap_valhalla_data:/custom_files
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - map-api
+    environment:
+      # Unde stă backend-ul TTR (cont + trasee). `host.docker.internal` ajunge la gazdă pe Docker
+      # Desktop; într-o stivă completă se pune numele serviciului, ex. `http://backend:8080/api/`.
+      TTR_API_URL: ${TTR_API_URL:-http://host.docker.internal:5177/api/}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  ttrmap_pgdata:
+  ttrmap_valhalla_data:

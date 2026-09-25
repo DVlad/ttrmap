@@ -1,4 +1,4 @@
-import { API_BASE } from "@/utils/apiBase";
+import { MAP_API_BASE } from "@/utils/apiBase";
 import type { LatLon } from "@/utils/trailStats";
 
 /**
@@ -54,7 +54,7 @@ export async function fetchRoute(
 ): Promise<RoutePlan> {
   if (points.length < 2) throw new Error("Rutarea are nevoie de cel puțin două puncte.");
 
-  const res = await fetch(`${API_BASE}/routing/route`, {
+  const res = await fetch(`${MAP_API_BASE}/routing/route`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -1,4 +1,4 @@
-import { API_BASE } from "@/utils/apiBase";
+import { MAP_API_BASE } from "@/utils/apiBase";
 
 /**
  * Punctele montane — cabane, refugii, posturi Salvamont, izvoare, belvedere, indicatoare.
@@ -52,7 +52,7 @@ export const MAX_POI_BBOX_SPAN_DEGREES = 10;
 /** Sub atîtea caractere nu se cheamă serverul: căutarea se face la fiecare tastă apăsată. */
 export const MIN_POI_SEARCH_LENGTH = 2;
 
-const BASE = `${API_BASE}/mountain-pois`;
+const BASE = `${MAP_API_BASE}/mountain-pois`;
 
 function bboxQuery(bounds: Bounds): string {
   return [bounds.south, bounds.west, bounds.north, bounds.east]

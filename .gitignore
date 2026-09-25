@@ -7,6 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# .NET (serviciul de hartă din `backend/`)
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.tsbuildinfo
+
 node_modules
 .DS_Store
 dist

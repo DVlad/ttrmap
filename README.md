@@ -15,16 +15,28 @@ singur produs**: același backend, același cont, aceeași paletă.
 | --- | --- |
 | Harta (`/map`) | MapLibre GL cu tile-uri vectoriale OpenFreeMap, 4 stiluri, fără cheie de API |
 | Planificatorul | puncte pe hartă, tragere, anulare, profil de mers, distanță, D+/D−, profil altimetric, salvare, export GPX |
-| Puncte montane | cabane, refugii, Salvamont, apă, belvedere, indicatoare — din backend, nu din Overpass la citire |
+| Puncte montane | cabane, refugii, Salvamont, apă, belvedere, indicatoare — din **baza acestei aplicații**, nu din Overpass la citire |
 | Trasee marcate | din Overpass, colorate după `osmc:symbol` |
-| Rutarea | prin backend (`POST /api/routing/route`), care cheamă motorul Valhalla al proiectului |
+| Rutarea | motorul Valhalla, găzduit de noi, în spatele serviciului din `backend/` |
+| Serviciul de hartă (`backend/`) | ASP.NET Core 10 + PostgreSQL: puncte montane, altitudini (DEM Copernicus), rutare (Valhalla) |
+
+**Două backend-uri, un singur cont.** Datele de hartă au serviciul lor (`backend/`, cu baza lui), dar
+**contul și traseele salvate rămîn în TTR** — traseele sînt comune cu antrenamentul (o rută planificată
+pe hartă apare în ride și în sesiunile de grup). Comuniunea se face prin **tokenul JWT**: serviciul de
+hartă validează tokenul emis de TTR, cu același issuer, audience și secret.
+
+Ce se pierde, spus explicit: serviciul de hartă nu poate citi rolul din baza TTR, deci poarta de
+administrator se sprijină pe lista `Admin:Emails` din configurare, iar un token revocat în TTR rămîne
+valid aici pînă îi expiră durata scurtă (30 de minute). Detalii în `docs/MUTARE-DIN-TTR.md`.
 
 Documentația de hartă, cu măsurătorile care au dus la fiecare decizie:
 
 - [`docs/STUDY-MAP.md`](docs/STUDY-MAP.md) — studiul principal: defecte, paritate cu Mapy, arhitectură,
   offline pe regiune, marcaje montane, fezabilitatea navigării, faze.
 - [`docs/F0-MAP-IMPLEMENTATION.md`](docs/F0-MAP-IMPLEMENTATION.md) — foaia de execuție F0, cu
-  măsurătorile (dimensiuni offline, timpi Overpass, DEM, comparatia motoarelor de rutare).
+  măsurătorile (dimensiuni offline, timpi Overpass, DEM, comparația motoarelor de rutare).
+- [`docs/MUTARE-DIN-TTR.md`](docs/MUTARE-DIN-TTR.md) — ce s-a mutat din TTR, în două etape, și ce a
+  rămas acolo deliberat.
 
 ## Ce încă **nu** există
 
@@ -41,22 +53,42 @@ Scrise explicit, ca să nu pară gata:
 
 ```powershell
 npm install
-npm run dev            # http://localhost:5173, cu proxy /api către localhost:5177
+npm run dev            # http://localhost:5173
 ```
 
-Backend-ul e cel din TTR:
+Sînt **două** servicii de pornit, iar proxy-ul din `vite.config.ts` duce fiecare cerere la locul lui
+(`/api` → TTR, `/map-api` → serviciul de hartă):
 
 ```powershell
+# 1. Serviciul de hartă (repo-ul acesta). Prima pornire aplică migrarea.
+cd C:\projects\ttrmap\backend
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+dotnet run --project TTRMap.Api          # pe 5199
+
+# 2. Backend-ul TTR, pentru cont și trasee
 cd C:\projects\ttr\ttr
-docker compose up -d postgres redis
-dotnet run --project backend\TTR.Api        # pe 5177
+dotnet run --project backend\TTR.Api     # pe 5177
+```
+
+Baza de hartă (`ttrmap_dev`) se creează o dată:
+
+```powershell
+docker exec ttr-dev-postgres-1 psql -U ttr -d postgres -c 'CREATE DATABASE ttrmap_dev'
+```
+
+Punctele montane se importă din OSM cu o comandă de ops (durează; măsurat: 18 s pentru Bucegi la o
+rulare, 340 s la alta — depinde de mirror):
+
+```powershell
+cd C:\projects\ttrmap\backend\TTRMap.Api\bin\Debug\net10.0
+dotnet TTRMap.Api.dll --import-mountain-pois 45.32,25.35,45.48,25.60
 ```
 
 Rutarea are nevoie de motorul Valhalla, care stă într-un profil Docker separat (prima pornire descarcă
 extractul OSM al României și construiește tile-urile, ~6 minute):
 
 ```powershell
-cd C:\projects\ttr\ttr
+cd C:\projects\ttrmap
 docker compose --profile routing up -d valhalla
 ```
 

@@ -1,4 +1,4 @@
-import { API_BASE } from "@/utils/apiBase";
+import { MAP_API_BASE } from "@/utils/apiBase";
 import type { LatLon } from "@/utils/trailStats";
 
 /**
@@ -35,7 +35,7 @@ export async function fetchElevations(
     .map((point) => `${point.lat.toFixed(5)},${point.lon.toFixed(5)}`)
     .join("|");
 
-  const res = await fetch(`${API_BASE}/elevation?locations=${encodeURIComponent(locations)}`, {
+  const res = await fetch(`${MAP_API_BASE}/elevation?locations=${encodeURIComponent(locations)}`, {
     signal,
   });
   if (!res.ok) throw new Error(`GET elevation failed: ${res.status}`);

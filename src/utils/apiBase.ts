@@ -1,6 +1,20 @@
-// Base URL for the backend API. Overridable via VITE_API_BASE (set at build time per
-// environment); defaults to the local ASP.NET Core dev server port.
+/**
+ * API-ul de cont și de trasee — rămîne cel al TTR.
+ *
+ * Contul și traseele salvate sînt comune cu aplicația de antrenament (aceeași bibliotecă, ca o rută
+ * planificată pe hartă să apară și în ride/grupuri), deci autentificarea și `routes` se cer de acolo.
+ */
 export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:5177/api";
+
+/**
+ * API-ul de hartă — serviciul din repo-ul ăsta: puncte montane, altitudini, rutare.
+ *
+ * De ce două baze: datele de hartă au alt ciclu de viață (importuri OSM, DEM, motorul Valhalla) și
+ * altă bază de date. Ce rămîne comun e contul, iar comuniunea se face prin **tokenul JWT**, nu
+ * printr-un tabel partajat — serviciul de hartă validează același token emis de TTR.
+ */
+export const MAP_API_BASE: string =
+  import.meta.env.VITE_MAP_API_BASE ?? "http://localhost:5199/api";
 
 export const TOKEN_KEY = "ttr_auth_token";
 /** Tokenul de refresh: opac, lung, rotit la fiecare folosire (#6). */
@@ -157,7 +171,12 @@ export function installAuthenticatedFetch() {
 			window.location.origin,
 		);
 		const apiUrl = new URL(API_BASE, window.location.origin);
-		const isApiRequest = requestUrl.origin === apiUrl.origin && requestUrl.pathname.startsWith(apiUrl.pathname);
+		const mapApiUrl = new URL(MAP_API_BASE, window.location.origin);
+		// Tokenul merge pe **amîndouă** serviciile: contul e comun (JWT-ul e emis de backend-ul TTR și
+		// validat de serviciul de hartă), dar datele de hartă stau într-un serviciu separat.
+		const isApiRequest =
+			(requestUrl.origin === apiUrl.origin && requestUrl.pathname.startsWith(apiUrl.pathname)) ||
+			(requestUrl.origin === mapApiUrl.origin && requestUrl.pathname.startsWith(mapApiUrl.pathname));
 
 		// Citit o singură dată: e folosit și pentru antet, și ca să știm dacă un 401 are ce deconecta.
 		const token = getAccessToken();

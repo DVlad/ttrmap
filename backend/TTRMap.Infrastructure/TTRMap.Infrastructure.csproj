@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TTRMap.Domain\TTRMap.Domain.csproj" />
+    <ProjectReference Include="..\TTRMap.Application\TTRMap.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Doar ce folosește serviciul de hartă: baza lui, HTTP-ul către Overpass / DEM / Valhalla și
+         cache-ul de tile-uri. Fără Firebase, MailKit, Redis sau StackExchange — nu are ce face cu ele. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <!-- Versiunea urmează ce aduce EF Core (10.0.10), altfel e o retrogradare de pachet. -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.10" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

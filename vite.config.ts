@@ -44,6 +44,30 @@ function maplibreWorker(): Plugin {
   };
 }
 
+/**
+ * Proxy-ul de dezvoltare și de verificare a build-ului.
+ *
+ * Două destinații, deliberat: `/api` merge la backend-ul TTR (cont, trasee), iar `/map-api` la
+ * serviciul de hartă din repo-ul acesta. `/map-api` se rescrie la `/api` pentru că serviciul își
+ * publică endpoint-urile sub `/api/...` — prefixul din față există doar ca nginx (ori proxy-ul de
+ * aici) să poată deosebi cele două servicii pe același origin.
+ *
+ * `vite preview` nu moștenește proxy-ul de dev, iar build-ul de producție cheamă căile relative
+ * (vezi `.env.production`); fără blocul `preview`, verificarea build-ului ajunge cross-origin la API
+ * și e refuzată de CORS — exact ce s-a întîmplat la prima rulare a `check:map`.
+ */
+const apiProxy = {
+  "/api": "http://localhost:5177",
+  "/hubs": { target: "http://localhost:5177", ws: true },
+  // `/map-api/mountain-pois` → serviciul de hartă, la `/api/mountain-pois`. Aceeași rescriere ca în
+  // `nginx.conf` (acolo `/map-api/` → `http://map-api:8080/api/`): clientul trimite o singură cale,
+  // iar cine o servește decide prefixul real.
+  "/map-api": {
+    target: "http://localhost:5199",
+    rewrite: (path: string) => path.replace(/^\/map-api/, "/api"),
+  },
+};
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -90,21 +114,10 @@ export default defineConfig(({ mode }) => ({
     alias: [{ find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) }],
   },
   server: {
-    proxy: {
-      "/api": "http://localhost:5177",
-      "/hubs": { target: "http://localhost:5177", ws: true },
-    },
+    proxy: apiProxy,
   },
-  // `vite preview` nu moștenește proxy-ul de dev, iar build-ul de producție cheamă `/api` pe același
-  // origin (vezi `.env.production`). Fără blocul ăsta, verificarea build-ului de producție pe
-  // `localhost:4173` ajunge cross-origin la API și e refuzată de CORS — exact ce s-a întîmplat la
-  // prima rulare a `check:map`. Aici proxy-ul e o comoditate de verificare, nu ceva de producție:
-  // în producție nginx face același lucru.
   preview: {
-    proxy: {
-      "/api": "http://localhost:5177",
-      "/hubs": { target: "http://localhost:5177", ws: true },
-    },
+    proxy: apiProxy,
   },
   test: {
     /** Fusul de test e fixat (România), ca testele care ating ore de perete să fie deterministe. */

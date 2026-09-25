@@ -1,22 +1,35 @@
 # Mutarea hărții în aplicația separată (TTR Hartă)
 
-**Data:** 2026-09-24 · **Unde:** `C:\projects\ttrmap` (repo separat)
+**Data:** 2026-09-24 (frontend) și 2026-09-25 (backend) · **Unde:** `C:\projects\ttrmap`
 
-Harta, planificatorul de trasee și tot ce ține de ele au fost mutate într-o aplicație separată, ca
-aplicația de antrenament să nu mai care 1 MB de MapLibre și un strat de date care nu se folosește pe
-niciunul dintre ecranele ei. Cele două rămîn **un singur produs**: același backend, același cont,
-aceeași paletă. Decizia și consecințele ei sînt notate în `STUDY-MAP.md` §16.
+Harta, planificatorul de trasee și tot ce ține de ele au fost mutate într-o aplicație separată. Cele
+două aplicații rămîn **un singur produs**: același cont, aceeași bibliotecă de trasee, aceeași paletă.
+
+## Două etape
+
+**Etapa 1 (2026-09-24) — frontend-ul.** Ecranele, straturile de hartă și planificatorul au plecat din
+TTR, care a scăpat astfel de 1,08 MB de MapLibre (chunk leneș, dar prezent în repo), de dependența
+`maplibre-gl` și de 1500 de linii de ecran.
+
+**Etapa 2 (2026-09-25) — backend-ul de hartă.** Au plecat și `MountainPoisController`,
+`ElevationController`, `RoutingController`, serviciile lor (Overpass, DEM Copernicus, Valhalla),
+entitatea, repository-ul, migrarea și serviciul Valhalla din `docker-compose`. TTR nu mai are **nicio**
+urmă de hartă: nici cod, nici tabelă, nici motor de rutare.
 
 ## Ce a plecat
 
-`MapExplorerView.vue` → `MapView.vue`, `ElevationProfileChart.vue`, `services/map/*`,
+**Frontend:** `MapExplorerView.vue` → `MapView.vue`, `ElevationProfileChart.vue`, `services/map/*`,
 `services/api/{mountainPoisApi,elevationApi,routingApi,routesApi}.ts`,
 `services/gpx/{GpxParser,GpxWriter}.ts`, `services/geo/{geoMath,geoFix,locationTransport}.ts`,
 `utils/{trailStats,elevationProfile,html,duration,apiBase,userScopedStorage}.ts`, `assets/theme.css`,
-`LanguageSelector.vue`, plus testele lor (13 fișiere, 122 de teste).
+`LanguageSelector.vue`, plus testele lor.
 
-`docs/STUDY-MAP.md` și `docs/F0-MAP-IMPLEMENTATION.md` s-au mutat și ele — sînt documentația hărții, iar
-aici nu mai are cine să le țină la zi.
+**Backend:** `TTRMap.Domain` / `TTRMap.Application` / `TTRMap.Infrastructure` / `TTRMap.Api` /
+`TTRMap.Tests` — 19 fișiere mutate, 133 de teste. `MapDbContext` are **o singură tabelă**
+(`MountainPois`), iar migrarea `InitialMapSchema` o creează de la zero.
+
+**Documentație și infrastructură:** `docs/STUDY-MAP.md`, `docs/F0-MAP-IMPLEMENTATION.md`,
+`docker/valhalla/` (imaginea motorului de rutare).
 
 ## Ce a rămas (deliberat)
 
@@ -25,20 +38,41 @@ aici nu mai are cine să le țină la zi.
 - **`services/gpx/GpxParser.ts`**, **`stores/route.ts`**, **`utils/apiBase.ts`** — folosite de ride,
   grupuri și de restul aplicației.
 - **`PersonalHeatmapView.vue`** — e tot o hartă, dar citește activități și se leagă de istoricul de
-  antrenament; mutarea ei ar trage după sine jumătate din TTR.
-- **Backend-ul întreg**, inclusiv `MountainPoisController`, `ElevationController`,
-  `RoutingController`: aplicația de hartă e un al doilea client al aceluiași API.
+  antrenament; folosește Leaflet, nu MapLibre.
+- **Contul și traseele salvate.** Tabelele `Users` și `Routes` rămîn în TTR, fiindcă le folosește și
+  antrenamentul. Harta le cheamă de acolo, cu același token.
 
-## De ce nu s-a partajat codul
+## Cum se țin împreună, acum că sînt două servicii
 
-Codul comun dintre cele două aplicații (autentificare, `apiBase`, `userScopedStorage`, `GpxParser`,
-paleta) e **copiat**, nu extras într-un pachet. Motivul e mărimea: ~600 de linii, fiecare cu teste deja
-scrise, într-o zonă care se schimbă rar. Un pachet partajat ar aduce un workspace npm, o versiune de
-publicat și un CI care trebuie să treacă pentru amîndouă înainte ca oricare să poată livra — cost care
-nu se plătește la 600 de linii.
+| | |
+| --- | --- |
+| Contul | Token JWT emis de TTR, validat de serviciul de hartă (același issuer, audience și **secret**) |
+| Traseele salvate | `GET/POST /api/routes` din TTR — harta nu are tabelă de trasee |
+| Punctele montane, altitudinile, rutarea | Serviciul de hartă, sub `/map-api` în producție |
+| Paleta și textele | Aceeași paletă (`assets/theme.css`), cataloage i18n proprii, decupate |
 
-Unde duplicarea ar începe să doară: cînd unul dintre cele două schimbă *contractul* (nu
-implementarea) — de exemplu dacă autentificarea capătă alt flux. Atunci se extrage.
+**Ce se pierde, spus explicit** (consecințe reale ale separării, nu scăpări):
+
+1. **Rolul de administrator nu se mai citește din bază.** Serviciul de hartă nu are tabel de
+   utilizatori, deci poarta de admin (`[AdministratorOnly]`, doar pe importul de puncte) se sprijină pe
+   lista `Admin:Emails` din configurare. Un admin scos din listă păstrează accesul pînă îi expiră
+   tokenul (30 de minute).
+2. **Un token revocat în TTR rămîne valid la serviciul de hartă** pînă la expirare (≤30 de minute).
+   TTR verifică versiunea de sesiune din bază; aici nu se poate. Expunerea e mică și suprafața e
+   punctele montane, altitudinile și rutarea.
+3. **Datele nu se mută singure.** TTR are o migrare `DropMountainPois`, iar baza hărții pornește goală.
+   Ordinea corectă la deploy: se importă punctele în baza hărții (sau se copiază tabela), **apoi** se
+   aplică migrarea de drop. Altfel se pierd verificările făcute de un om — importul singur le reface pe
+   toate ca neverificate.
+
+## De ce codul comun e copiat, nu partajat
+
+Autentificarea, `apiBase`, `userScopedStorage`, `GpxParser` și paleta sînt **copiate**, nu extrase
+într-un pachet: ~600 de linii care se schimbă rar. Un pachet partajat ar aduce un workspace npm, o
+versiune de publicat și un CI cuplat pentru ambele aplicații — cost care nu se plătește la mărimea asta.
+
+Unde duplicarea ar începe să doară: cînd se schimbă *contractul* (nu implementarea) — de exemplu dacă
+autentificarea capară alt flux. Atunci se extrage.
 
 ## Ce urmează în aplicația nouă
 
