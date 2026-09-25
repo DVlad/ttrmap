@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+  Stilurile de bază ale aplicației de hartă.
+ 
+
+  Aici nu se copiază `main.css` din TTR: acolo sînt și tema luminoasă, și `.app-page` (cadrul de
+  pagină al ecranelor de conținut), și o grămadă de reguli pentru ecrane care aici nu există. Ce
+  rămîne e doar ce ține de o aplicație care e, în esență, o hartă pe tot ecranul.
+*/
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
+  /* Plasa de siguranță împotriva derulării laterale: dacă **un** element e mai lat decît ecranul,
+     toată pagina devine derulabilă pe orizontală și utilizatorul poate da swipe într-o bandă goală.
+     `clip` (nu `hidden`) nu creează un container de scroll, deci nimic nu-și schimbă scrollport-ul. */
+  overflow-x: clip;
+}
+
+html,
+body,
+#app {
+  /* Harta își ia înălțimea din ecran, nu din conținut: fără asta, containerul are 0 înălțime și
+     canvas-ul MapLibre rămîne invizibil, deși se inițializează corect. */
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-gray-950);
+  color: var(--color-gray-100);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Marcajul de waypoint din planificator e un element DOM propriu: fără `will-change`, transformările
+   de poziție ale MapLibre lasă o dungă la tragere pe ecranele mobile. */
+.maplibregl-marker {
+  will-change: transform;
+}
+
+/* Planificatorul activ schimbă cursorul hărții, ca la vechea hartă. */
+.planner-on .maplibregl-canvas {
+  cursor: crosshair !important;
+}

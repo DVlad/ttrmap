@@ -1,0 +1,48 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+# Un singur package manager: npm (vezi README). Lockfile-urile alternativelor sunt ignorate
+# intenționat, ca o instalare locală cu pnpm/yarn să nu ajungă în repo și să divergă de CI,
+# de imaginea Docker și de pașii de release, care toate rulează `npm ci`.
+pnpm-lock.yaml
+yarn.lock
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+
+# Vite
+*.timestamp-*-*.mjs
+
+# Verificari locale (screenshots, rapoarte) - nu se comit
+.verify/
